@@ -1,0 +1,117 @@
+<section class="hero">
+  <div class="container hero-inner">
+    <div class="hero-texto">
+      <span class="hero-tag"><app-icon name="zap" [size]="14" /> Marketplace de tecnologia</span>
+      <h1>Monte seu setup com <span>quem entende</span> de hardware.</h1>
+      <p>Placas de vídeo, processadores, notebooks e periféricos de lojas de todo o Brasil — em até 10x sem juros.</p>
+      <div class="hero-cta">
+        <a routerLink="/busca" class="btn btn-primary btn-lg">Ver todos os produtos <app-icon name="chevron-right" [size]="18" /></a>
+        @if (!auth.logado()) {
+          <a routerLink="/cadastro" [queryParams]="{ tipo: 'vendedor' }" class="btn btn-lg hero-sec">Quero vender</a>
+        }
+      </div>
+    </div>
+    <div class="hero-arte" aria-hidden="true">
+      @for (c of categorias.slice(0, 6); track c.nome; let i = $index) {
+        <div class="tile t{{ i }}" [style.background]="'linear-gradient(135deg,' + c.cor[0] + ',' + c.cor[1] + ')'">
+          <app-icon [name]="c.icone" [size]="i === 0 ? 72 : 40" [stroke]="1.4" />
+        </div>
+      }
+    </div>
+  </div>
+</section>
+
+<div class="container">
+  <section class="beneficios">
+    <div><app-icon name="card" [size]="26" /><span><b>10x sem juros</b><small>em todos os produtos</small></span></div>
+    <div><app-icon name="shield" [size]="26" /><span><b>Compra segura</b><small>seus dados protegidos</small></span></div>
+    <div><app-icon name="truck" [size]="26" /><span><b>Acompanhe o envio</b><small>do pagamento à entrega</small></span></div>
+    <div><app-icon name="store" [size]="26" /><span><b>Vendedores verificados</b><small>CNPJ validado</small></span></div>
+  </section>
+
+  <section class="secao">
+    <div class="secao-head">
+      <h2>Navegue por categoria</h2>
+    </div>
+    <div class="cats">
+      @for (c of categorias; track c.nome) {
+        <a class="cat" routerLink="/busca" [queryParams]="{ q: c.busca }">
+          <span class="cat-ico" [style.background]="'linear-gradient(135deg,' + c.cor[0] + ',' + c.cor[1] + ')'">
+            <app-icon [name]="c.icone" [size]="26" [stroke]="1.6" />
+          </span>
+          {{ c.nome }}
+        </a>
+      }
+    </div>
+  </section>
+
+  @if (novidades.error()) {
+    <div class="card">
+      <app-estado
+        [erro]="true"
+        titulo="Não foi possível carregar os produtos"
+        texto="Verifique se o backend (Spring Boot) está rodando em http://localhost:8080."
+      >
+        <button class="btn btn-outline" (click)="novidades.reload(); baratos.reload()">Tentar novamente</button>
+      </app-estado>
+    </div>
+  } @else {
+    <section class="secao">
+      <div class="secao-head">
+        <h2><app-icon name="zap" [size]="22" /> Chegaram agora</h2>
+        <a routerLink="/busca" [queryParams]="{ ordem: 'id,desc' }">Ver tudo <app-icon name="chevron-right" [size]="16" /></a>
+      </div>
+      @if (novidades.isLoading()) {
+        <div class="grade-produtos">
+          @for (s of esqueletos; track $index) {
+            <div class="skeleton" style="height: 380px"></div>
+          }
+        </div>
+      } @else if (novidades.value()?.conteudo?.length) {
+        <div class="grade-produtos">
+          @for (p of novidades.value()!.conteudo; track p.id) {
+            <app-produto-card [produto]="p" />
+          }
+        </div>
+      } @else {
+        <div class="card">
+          <app-estado
+            icone="store"
+            titulo="Nenhum produto à venda ainda"
+            texto="Assim que um vendedor cadastrar produtos, eles aparecem aqui."
+          >
+            @if (!auth.logado()) {
+              <a routerLink="/cadastro" [queryParams]="{ tipo: 'vendedor' }" class="btn btn-primary">Cadastrar como vendedor</a>
+            } @else if (auth.role() === 'VENDEDOR') {
+              <a routerLink="/vendedor/produtos/novo" class="btn btn-primary">Anunciar meu primeiro produto</a>
+            }
+          </app-estado>
+        </div>
+      }
+    </section>
+
+    @if (baratos.value()?.conteudo?.length) {
+      <section class="secao ofertas">
+        <div class="secao-head">
+          <h2><app-icon name="tag" [size]="22" /> Menores preços</h2>
+          <a routerLink="/busca" [queryParams]="{ ordem: 'preco,asc' }">Ver tudo <app-icon name="chevron-right" [size]="16" /></a>
+        </div>
+        <div class="grade-produtos">
+          @for (p of baratos.value()!.conteudo; track p.id) {
+            <app-produto-card [produto]="p" />
+          }
+        </div>
+      </section>
+    }
+  }
+
+  @if (!auth.logado()) {
+    <section class="banner-vendedor">
+      <div>
+        <h2>Tem uma loja? Venda na KamiStore.</h2>
+        <p>Cadastre seu CNPJ, anuncie seus produtos e acompanhe cada venda pelo painel do vendedor.</p>
+      </div>
+      <a routerLink="/cadastro" [queryParams]="{ tipo: 'vendedor' }" class="btn btn-primary btn-lg">Começar a vender</a>
+    </section>
+  }
+</div>

@@ -1,0 +1,231 @@
+<div class="container pagina">
+  @if (produto.error()) {
+    <div class="card">
+      <app-estado [erro]="true" titulo="Produto não encontrado" texto="Ele pode ter sido removido ou o link está incorreto.">
+        <a routerLink="/busca" class="btn btn-outline">Ver outros produtos</a>
+      </app-estado>
+    </div>
+  } @else if (produto.value(); as p) {
+    <nav class="breadcrumb">
+      <a routerLink="/">Início</a> <app-icon name="chevron-right" [size]="14" />
+      @if (categoria().busca) {
+        <a routerLink="/busca" [queryParams]="{ q: categoria().busca }">{{ categoria().nome }}</a>
+        <app-icon name="chevron-right" [size]="14" />
+      }
+      <span>{{ p.nome }}</span>
+    </nav>
+
+    <div class="principal">
+      <div class="galeria card">
+        <app-produto-img [nome]="p.nome" [src]="fotoAtual()" />
+        @if (imagens().length > 1) {
+          <div class="thumbs">
+            @for (img of imagens(); track img.id; let i = $index) {
+              <button [class.ativa]="i === fotoIdx()" (click)="fotoIdx.set(i)" [attr.aria-label]="'Foto ' + (i + 1)">
+                <img [src]="img.url" [alt]="p.nome + ' foto ' + (i + 1)" loading="lazy" />
+              </button>
+            }
+          </div>
+        }
+      </div>
+
+      <div class="info">
+        <a class="loja" [routerLink]="['/loja', p.vendedorId]"><app-icon name="store" [size]="16" /> {{ p.vendedorNome }}</a>
+        <h1>{{ p.nome }}</h1>
+
+        <a class="nota" href="#avaliacoes">
+          <app-estrelas [nota]="resumo.value()?.mediaNotas ?? 0" />
+          @if (resumo.value()?.totalAvaliacoes) {
+            <b>{{ resumo.value()!.mediaNotas | number: '1.1-1' }}</b>
+            <span>({{ resumo.value()!.totalAvaliacoes }} {{ resumo.value()!.totalAvaliacoes === 1 ? 'avaliação' : 'avaliações' }})</span>
+          } @else {
+            <span>Sem avaliações ainda</span>
+          }
+        </a>
+
+        <div class="meta">
+          <span><app-icon name="barcode" [size]="16" /> EAN <span class="mono">{{ p.ean }}</span></span>
+          <span>Cód. {{ p.id }}</span>
+        </div>
+
+        @if (p.descricao) {
+          <p class="resumo-desc">{{ p.descricao }}</p>
+        }
+      </div>
+
+      <aside class="compra card">
+        @if (disponivel()) {
+          <div class="estoque ok"><app-icon name="check" [size]="16" /> Em estoque</div>
+        } @else if (p.status === 'ATIVO' || p.status === 'VENDIDO') {
+          <div class="estoque esgotado"><app-icon name="alert" [size]="16" /> Produto esgotado</div>
+        } @else {
+          <div class="estoque esgotado"><app-icon name="alert" [size]="16" /> Indisponível no momento</div>
+        }
+
+        @if (aPartirDe()) {
+          <small class="muted apartir">a partir de</small>
+        }
+        <div class="preco">{{ precoExibido() | currency }}</div>
+        <div class="parcela">em até <b>10x de {{ precoExibido() / 10 | currency }}</b> sem juros no cartão</div>
+
+        @if (disponivel() && temVariacoes()) {
+          @if (cores().length) {
+            <div class="opcao">
+              <span>Cor: <b>{{ corSel() ?? 'escolha' }}</b></span>
+              <div class="chips">
+                @for (c of cores(); track c) {
+                  <button class="chip" [class.sel]="corSel() === c" [disabled]="!corDisponivel(c)" (click)="escolherCor(c)">{{ c }}</button>
+                }
+              </div>
+            </div>
+          }
+          @if (tamanhos().length) {
+            <div class="opcao">
+              <span>Tamanho: <b>{{ tamSel() ?? 'escolha' }}</b></span>
+              <div class="chips">
+                @for (t of tamanhos(); track t) {
+                  <button class="chip" [class.sel]="tamSel() === t" [disabled]="!tamDisponivel(t)" (click)="escolherTam(t)">{{ t }}</button>
+                }
+              </div>
+            </div>
+          }
+          @if (variacaoSel() && variacaoSel()!.quantidade === 0) {
+            <div class="alerta warn">Esta combinação está esgotada.</div>
+          }
+        }
+
+        @if (disponivel()) {
+          <div class="qtd-linha">
+            <span>Quantidade</span>
+            <div class="stepper">
+              <button (click)="alterarQtd(-1)" [disabled]="quantidade() <= 1" aria-label="Diminuir"><app-icon name="minus" [size]="16" /></button>
+              <span>{{ quantidade() }}</span>
+              <button (click)="alterarQtd(1)" [disabled]="quantidade() >= estoque()" aria-label="Aumentar"><app-icon name="plus" [size]="16" /></button>
+            </div>
+          </div>
+          <small class="muted">
+            @if (faltaEscolher()) {
+              Escolha {{ cores().length && tamanhos().length ? 'cor e tamanho' : cores().length ? 'a cor' : 'o tamanho' }} para continuar
+            } @else if (estoque() > 0 && estoque() <= 5) {
+              <b class="ultimas">Restam apenas {{ estoque() }}!</b>
+            } @else if (estoque() > 5) {
+              {{ estoque() }} disponíveis
+            }
+          </small>
+
+          <button class="btn btn-primary btn-lg btn-block" (click)="comprar(true)" [disabled]="faltaEscolher() || estoque() === 0 || compra.adicionando() === p.id">
+            <app-icon name="cart" [size]="20" /> Comprar agora
+          </button>
+          <button class="btn btn-outline btn-block" (click)="comprar(false)" [disabled]="faltaEscolher() || estoque() === 0 || compra.adicionando() === p.id">
+            Adicionar ao carrinho
+          </button>
+        }
+
+        <ul class="garantias">
+          <li><app-icon name="shield" [size]="16" /> Compra garantida pela KamiStore</li>
+          <li><app-icon name="store" [size]="16" /> Vendido por <a [routerLink]="['/loja', p.vendedorId]">{{ p.vendedorNome }}</a></li>
+          <li><app-icon name="truck" [size]="16" /> Acompanhe o envio na sua conta</li>
+        </ul>
+      </aside>
+    </div>
+
+    <section class="card bloco">
+      <h2 class="card-titulo">Descrição do produto</h2>
+      <p class="descricao">{{ p.descricao || 'O vendedor não informou uma descrição para este produto.' }}</p>
+      <table class="specs">
+        <tr><th>Nome</th><td>{{ p.nome }}</td></tr>
+        <tr><th>Código de barras (EAN)</th><td class="mono">{{ p.ean }}</td></tr>
+        <tr><th>Vendedor</th><td>{{ p.vendedorNome }}</td></tr>
+        @if (cores().length) {
+          <tr><th>Cores</th><td>{{ cores().join(', ') }}</td></tr>
+        }
+        @if (tamanhos().length) {
+          <tr><th>Tamanhos</th><td>{{ tamanhos().join(', ') }}</td></tr>
+        }
+      </table>
+    </section>
+
+    <section class="card bloco" id="avaliacoes">
+      <h2 class="card-titulo">Avaliações dos clientes</h2>
+      <div class="aval-grid">
+        <div class="aval-resumo">
+          <div class="media">{{ (resumo.value()?.mediaNotas ?? 0) | number: '1.1-1' }}</div>
+          <app-estrelas [nota]="resumo.value()?.mediaNotas ?? 0" [tamanho]="20" />
+          <span class="muted">{{ resumo.value()?.totalAvaliacoes ?? 0 }} avaliações</span>
+
+          @if (auth.role() === 'CLIENTE') {
+            <form class="form-aval" (ngSubmit)="avaliar()">
+              <b>Avalie este produto</b>
+              <app-estrelas [(nota)]="nota" [editavel]="true" [tamanho]="26" />
+              <textarea
+                name="comentario"
+                [(ngModel)]="comentario"
+                maxlength="1000"
+                placeholder="Conte o que achou (opcional)"
+              ></textarea>
+              @if (erroAval()) {
+                <div class="alerta erro">{{ erroAval() }}</div>
+              }
+              <button class="btn btn-dark btn-block" [disabled]="enviando()">
+                {{ enviando() ? 'Enviando…' : 'Enviar avaliação' }}
+              </button>
+              <small class="muted">Disponível para quem recebeu este produto (pedido entregue).</small>
+            </form>
+          } @else if (!auth.logado()) {
+            <p class="muted pequeno"><a routerLink="/login" [queryParams]="{ returnUrl: '/produto/' + p.id }">Entre</a> para avaliar produtos que você comprou.</p>
+          }
+        </div>
+
+        <div class="aval-lista">
+          @for (a of avaliacoes.value()?.conteudo ?? []; track a.id) {
+            <article class="aval">
+              <header>
+                <span class="avatar">{{ a.clienteNome.charAt(0) }}</span>
+                <div>
+                  <b>{{ a.clienteNome }}</b>
+                  <small class="muted">{{ a.dataAvaliacao | date: 'dd/MM/yyyy' }}</small>
+                </div>
+                <app-estrelas [nota]="a.nota" [tamanho]="14" />
+                @if (auth.role() === 'ADMIN') {
+                  <button class="btn btn-ghost btn-icon" (click)="excluirAvaliacao(a)" title="Excluir avaliação"><app-icon name="trash" [size]="16" /></button>
+                }
+              </header>
+              @if (a.comentario) {
+                <p>{{ a.comentario }}</p>
+              }
+            </article>
+          } @empty {
+            <app-estado icone="star" titulo="Nenhuma avaliação ainda" texto="Quem comprar este produto poderá avaliá-lo após a entrega." />
+          }
+          @if (avaliacoes.value(); as av) {
+            <app-paginacao [pagina]="av.pagina" [total]="av.totalPaginas" (mudar)="paginaAval.set($event)" />
+          }
+        </div>
+      </div>
+    </section>
+
+    @if (outrosDaLoja().length) {
+      <section class="bloco">
+        <div class="secao-head">
+          <h2>Mais de {{ p.vendedorNome }}</h2>
+          <a [routerLink]="['/loja', p.vendedorId]">Ver loja <app-icon name="chevron-right" [size]="16" /></a>
+        </div>
+        <div class="grade-produtos">
+          @for (o of outrosDaLoja(); track o.id) {
+            <app-produto-card [produto]="o" />
+          }
+        </div>
+      </section>
+    }
+  } @else {
+    <div class="principal">
+      <div class="skeleton" style="aspect-ratio: 1"></div>
+      <div>
+        <div class="skeleton" style="height: 18px; width: 30%"></div>
+        <div class="skeleton" style="height: 36px; margin-top: 14px"></div>
+        <div class="skeleton" style="height: 36px; margin-top: 8px; width: 70%"></div>
+      </div>
+      <div class="skeleton" style="height: 360px"></div>
+    </div>
+  }
+</div>

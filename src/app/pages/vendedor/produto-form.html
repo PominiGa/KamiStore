@@ -1,0 +1,144 @@
+<div class="layout">
+  <form class="coluna" [formGroup]="form" (ngSubmit)="salvar()">
+    @if (carregando()) {
+      <div class="skeleton" style="height: 400px"></div>
+    } @else {
+      <section class="card">
+        <h2 class="card-titulo">{{ id() ? 'Editar produto #' + id() : 'Cadastrar novo produto' }}</h2>
+        <div class="form-grid">
+          <div class="campo" [class.invalido]="inv('nome')">
+            <label>Nome do produto</label>
+            <input formControlName="nome" maxlength="100" placeholder="Placa de Vídeo RTX 5070 12GB" />
+            @if (servidor()['nome']) { <span class="erro-campo">{{ servidor()['nome'] }}</span> }
+          </div>
+
+          <div class="campo" [class.invalido]="inv('descricao')">
+            <label>Descrição <span class="muted">(opcional)</span></label>
+            <textarea formControlName="descricao" maxlength="255" placeholder="GDDR7, 12GB, PCIe 5.0"></textarea>
+            <span class="dica">{{ valores().descricao?.length ?? 0 }}/255</span>
+          </div>
+
+          <div class="campo span-2" [class.invalido]="inv('preco')">
+            <label>Preço (R$)</label>
+            <input formControlName="preco" type="number" step="0.01" min="0.01" placeholder="3999.90" />
+            @if (inv('preco')) { <span class="erro-campo">Informe um preço maior que zero</span> }
+          </div>
+
+          <div class="campo span-2" [class.invalido]="!temVariacoes() && inv('quantidade')">
+            <label>Estoque</label>
+            @if (temVariacoes()) {
+              <input [value]="estoqueTotal()" disabled />
+              <span class="dica">Soma das variações</span>
+            } @else {
+              <input formControlName="quantidade" type="number" min="0" step="1" />
+              @if (inv('quantidade')) { <span class="erro-campo">Informe o estoque</span> }
+            }
+          </div>
+
+          <div class="campo span-2" [class.invalido]="inv('ean') || servidor()['ean']">
+            <label>Código de barras (EAN)</label>
+            <input formControlName="ean" inputmode="numeric" maxlength="17" placeholder="7891234567895" />
+            @if (inv('ean')) { <span class="erro-campo">8 a 17 dígitos</span> }
+            @if (servidor()['ean']) { <span class="erro-campo">{{ servidor()['ean'] }}</span> }
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Fotos ===== -->
+      <section class="card">
+        <h2 class="card-titulo">Fotos <span class="muted contador">{{ totalFotos() }}/{{ maxImagens }}</span></h2>
+        <div class="fotos">
+          @for (img of fotosSalvas(); track img.id; let i = $index) {
+            <div class="foto">
+              <img [src]="img.url" alt="Foto do produto" />
+              @if (i === 0) { <span class="capa">Capa</span> }
+              <button type="button" class="remover" (click)="removerSalva(img)" title="Remover foto"><app-icon name="x" [size]="14" /></button>
+            </div>
+          }
+          @for (f of fotosNovas(); track f.url; let i = $index) {
+            <div class="foto nova">
+              <img [src]="f.url" [alt]="f.arquivo.name" />
+              @if (!fotosSalvas().length && i === 0) { <span class="capa">Capa</span> }
+              <span class="pendente">Nova</span>
+              <button type="button" class="remover" (click)="descartarNova(i)" title="Descartar"><app-icon name="x" [size]="14" /></button>
+            </div>
+          }
+          @if (totalFotos() < maxImagens) {
+            <label class="foto adicionar">
+              <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple (change)="selecionarFotos($event)" hidden />
+              <app-icon name="plus" [size]="24" />
+              <span>Adicionar fotos</span>
+            </label>
+          }
+        </div>
+        <span class="dica">JPEG, PNG, WEBP ou GIF · até 5MB cada · a primeira foto é a capa. Fotos novas são enviadas ao salvar.</span>
+      </section>
+
+      <!-- ===== Variações ===== -->
+      <section class="card">
+        <h2 class="card-titulo">Variações <span class="muted contador">cor / tamanho (opcional)</span></h2>
+
+        @if (variacoes.length) {
+          <div class="var-head">
+            <span>Cor</span><span>Tamanho</span><span>Estoque</span><span>Preço (vazio = do produto)</span><span></span>
+          </div>
+          <div formArrayName="variacoes" class="var-lista">
+            @for (v of variacoes.controls; track v; let i = $index) {
+              <div class="var-linha" [formGroupName]="i">
+                <input formControlName="cor" placeholder="Azul" maxlength="50" aria-label="Cor" />
+                <input formControlName="tamanho" placeholder="M" maxlength="20" aria-label="Tamanho" />
+                <input formControlName="quantidade" type="number" min="0" aria-label="Estoque"
+                       [class.erro]="v.controls.quantidade.touched && v.controls.quantidade.invalid" />
+                <input formControlName="preco" type="number" step="0.01" min="0.01" aria-label="Preço"
+                       [placeholder]="(valores().preco ?? 0) | currency" />
+                <button type="button" class="btn btn-ghost btn-icon" (click)="removerVariacao(i)" title="Remover variação">
+                  <app-icon name="trash" [size]="16" />
+                </button>
+              </div>
+            }
+          </div>
+        } @else {
+          <p class="muted vazio">Sem variações: o produto usa um único estoque. Adicione variações para vender por cor e/ou tamanho.</p>
+        }
+
+        <div class="var-acoes">
+          <button type="button" class="btn btn-outline btn-sm" (click)="adicionarVariacao()"><app-icon name="plus" [size]="16" /> Adicionar variação</button>
+        </div>
+
+        <details class="grade">
+          <summary>Gerar grade cor × tamanho</summary>
+          <div class="grade-campos">
+            <div class="campo"><label>Cores</label><input #cores placeholder="Azul, Preto, Branco" /></div>
+            <div class="campo"><label>Tamanhos</label><input #tams placeholder="P, M, G, GG" /></div>
+            <button type="button" class="btn btn-dark btn-sm" (click)="gerarGrade(cores.value, tams.value); cores.value = ''; tams.value = ''">Gerar</button>
+          </div>
+        </details>
+      </section>
+
+      @if (erro()) {
+        <div class="alerta erro"><app-icon name="alert" [size]="18" /> {{ erro() }}</div>
+      }
+
+      <div class="acoes">
+        <a routerLink="/vendedor" class="btn btn-ghost">Cancelar</a>
+        <button class="btn btn-primary btn-lg" [disabled]="salvando()">
+          @if (salvando()) { <span class="spinner"></span> Salvando… } @else { {{ id() ? 'Salvar alterações' : 'Cadastrar produto' }} }
+        </button>
+      </div>
+    }
+  </form>
+
+  <aside class="preview">
+    <small class="muted">Pré-visualização na vitrine</small>
+    <div class="card-prev">
+      <app-produto-img [nome]="valores().nome || 'Produto'" [src]="fotoPreview()" />
+      <b class="nome">{{ valores().nome || 'Nome do produto' }}</b>
+      <span class="preco">{{ +(valores().preco ?? 0) | currency }}</span>
+      <small class="muted">em até 10x de {{ +(valores().preco ?? 0) / 10 | currency }} sem juros</small>
+    </div>
+    <div class="alerta info">
+      <app-icon name="zap" [size]="18" />
+      <span>Produtos novos já entram <b>ativos</b> na vitrine. Com estoque zerado, ficam como <b>esgotado</b>.</span>
+    </div>
+  </aside>
+</div>

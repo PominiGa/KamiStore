@@ -1,0 +1,178 @@
+<div class="container pagina">
+  <div class="cabecalho">
+    <div>
+      <h1 class="titulo-pagina">Administração</h1>
+      <span class="muted">Visão geral da plataforma</span>
+    </div>
+  </div>
+
+  <div class="stats">
+    <button class="stat" (click)="aba.set('pedidos')">
+      <app-icon name="list" /><span><small>Pedidos</small><b>{{ pedidos.value()?.length ?? '–' }}</b></span>
+    </button>
+    <button class="stat" (click)="aba.set('clientes')">
+      <app-icon name="users" /><span><small>Clientes</small><b>{{ contagemRoles().CLIENTE }}</b></span>
+    </button>
+    <button class="stat" (click)="aba.set('vendedores')">
+      <app-icon name="store" /><span><small>Vendedores</small><b>{{ contagemRoles().VENDEDOR }}</b></span>
+    </button>
+    <button class="stat" (click)="aba.set('produtos')">
+      <app-icon name="package" /><span><small>Produtos ativos</small><b>{{ produtos.value()?.totalElementos ?? '–' }}</b></span>
+    </button>
+    <div class="stat destaque">
+      <app-icon name="wallet" /><span><small>Volume vendido</small><b>{{ faturamento() | currency }}</b></span>
+    </div>
+  </div>
+
+  <nav class="abas">
+    <button [class.ativo]="aba() === 'pedidos'" (click)="aba.set('pedidos')"><app-icon name="list" [size]="18" /> Pedidos</button>
+    <button [class.ativo]="aba() === 'produtos'" (click)="aba.set('produtos')"><app-icon name="package" [size]="18" /> Produtos</button>
+    <button [class.ativo]="aba() === 'usuarios'" (click)="aba.set('usuarios')"><app-icon name="user" [size]="18" /> Usuários</button>
+    <button [class.ativo]="aba() === 'clientes'" (click)="aba.set('clientes')"><app-icon name="users" [size]="18" /> Clientes</button>
+    <button [class.ativo]="aba() === 'vendedores'" (click)="aba.set('vendedores')"><app-icon name="store" [size]="18" /> Vendedores</button>
+  </nav>
+
+  @switch (aba()) {
+    @case ('pedidos') {
+      <div class="filtro">
+        <label>Status
+          <select [value]="filtroStatus()" (change)="filtroStatus.set($any($event.target).value)">
+            <option value="">Todos</option>
+            @for (s of todosStatus; track s) {
+              <option [value]="s">{{ labels[s] }}</option>
+            }
+          </select>
+        </label>
+      </div>
+      @if (pedidos.isLoading()) {
+        <div class="skeleton" style="height: 200px"></div>
+      } @else {
+        <div class="tabela-wrap">
+          <table class="tabela">
+            <thead>
+              <tr><th>#</th><th>Data</th><th>Cliente</th><th>Itens</th><th class="num">Total</th><th>Status</th><th>Ação</th></tr>
+            </thead>
+            <tbody>
+              @for (p of pedidosOrdenados(); track p.id) {
+                <tr [class.ocupado]="ocupado() === 'pedido-' + p.id">
+                  <td><a [routerLink]="['/pedido', p.id]"><b>#{{ p.id }}</b></a></td>
+                  <td>{{ p.dataPedido | date: 'dd/MM/yy HH:mm' }}</td>
+                  <td>{{ p.clienteNome }}</td>
+                  <td>{{ p.itens.length }}</td>
+                  <td class="num"><b>{{ p.valorTotal | currency }}</b></td>
+                  <td><app-status [pedido]="p.status" /></td>
+                  <td>
+                    @if (proximos(p.status).length) {
+                      <select class="acao" (change)="mudarStatus(p, $any($event.target).value); $any($event.target).value = ''">
+                        <option value="">Alterar para…</option>
+                        @for (s of proximos(p.status); track s) {
+                          <option [value]="s">{{ labels[s] }}</option>
+                        }
+                      </select>
+                    } @else {
+                      <span class="muted">—</span>
+                    }
+                  </td>
+                </tr>
+              } @empty {
+                <tr><td colspan="7"><app-estado icone="list" titulo="Nenhum pedido" /></td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    }
+
+    @case ('produtos') {
+      <p class="muted nota">Produtos ativos na vitrine. Use “Remover” para moderar anúncios.</p>
+      <div class="tabela-wrap">
+        <table class="tabela">
+          <thead><tr><th>#</th><th>Produto</th><th>Vendedor</th><th class="num">Preço</th><th class="num">Estoque</th><th></th></tr></thead>
+          <tbody>
+            @for (p of produtos.value()?.conteudo ?? []; track p.id) {
+              <tr [class.ocupado]="ocupado() === 'produto-' + p.id">
+                <td>{{ p.id }}</td>
+                <td><a [routerLink]="['/produto', p.id]">{{ p.nome }}</a></td>
+                <td><a [routerLink]="['/loja', p.vendedorId]">{{ p.vendedorNome }}</a></td>
+                <td class="num">{{ p.preco | currency }}</td>
+                <td class="num">{{ p.quantidade }}</td>
+                <td class="num"><button class="btn btn-danger btn-sm" (click)="inativarProduto(p)"><app-icon name="power" [size]="14" /> Remover</button></td>
+              </tr>
+            } @empty {
+              <tr><td colspan="6"><app-estado icone="package" titulo="Nenhum produto ativo" /></td></tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      @if (produtos.value(); as r) {
+        <app-paginacao [pagina]="r.pagina" [total]="r.totalPaginas" (mudar)="paginaProdutos.set($event)" />
+      }
+    }
+
+    @case ('usuarios') {
+      <div class="tabela-wrap">
+        <table class="tabela">
+          <thead><tr><th>#</th><th>Nome</th><th>Email</th><th>Perfil</th><th></th></tr></thead>
+          <tbody>
+            @for (u of usuarios.value() ?? []; track u.id) {
+              <tr [class.ocupado]="ocupado() === 'usuario-' + u.id">
+                <td>{{ u.id }}</td>
+                <td><b>{{ u.nome }}</b></td>
+                <td>{{ u.email }}</td>
+                <td><span class="badge" [class.badge-info]="u.role === 'CLIENTE'" [class.badge-warn]="u.role === 'VENDEDOR'" [class.badge-danger]="u.role === 'ADMIN'">{{ roles[u.role] }}</span></td>
+                <td class="num">
+                  @if (u.email !== auth.usuario()?.email) {
+                    <button class="btn btn-danger btn-sm" (click)="excluirUsuario(u)"><app-icon name="trash" [size]="14" /> Excluir</button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+    @case ('clientes') {
+      <div class="tabela-wrap">
+        <table class="tabela">
+          <thead><tr><th>#</th><th>Nome</th><th>Email</th><th>CPF</th><th class="num">Endereços</th><th class="num">Telefones</th></tr></thead>
+          <tbody>
+            @for (c of clientes.value() ?? []; track c.id) {
+              <tr>
+                <td>{{ c.id }}</td>
+                <td><b>{{ c.usuario.nome }}</b></td>
+                <td>{{ c.usuario.email }}</td>
+                <td class="mono">{{ cpf(c.cpf) }}</td>
+                <td class="num">{{ c.usuario.enderecos.length }}</td>
+                <td class="num">{{ c.usuario.telefones.length }}</td>
+              </tr>
+            } @empty {
+              <tr><td colspan="6"><app-estado icone="users" titulo="Nenhum cliente" /></td></tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+    @case ('vendedores') {
+      <div class="tabela-wrap">
+        <table class="tabela">
+          <thead><tr><th>#</th><th>Loja</th><th>Email</th><th>CNPJ</th><th></th></tr></thead>
+          <tbody>
+            @for (v of vendedores.value() ?? []; track v.id) {
+              <tr>
+                <td>{{ v.id }}</td>
+                <td><b>{{ v.usuario.nome }}</b></td>
+                <td>{{ v.usuario.email }}</td>
+                <td class="mono">{{ cnpj(v.cnpj) }}</td>
+                <td class="num"><a [routerLink]="['/loja', v.id]" class="btn btn-ghost btn-sm"><app-icon name="store" [size]="14" /> Ver loja</a></td>
+              </tr>
+            } @empty {
+              <tr><td colspan="5"><app-estado icone="store" titulo="Nenhum vendedor" /></td></tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+</div>
